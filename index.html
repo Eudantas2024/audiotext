@@ -63,18 +63,33 @@
   <div id="log" class="log"></div>
 
   <div class="note">
-    Se aparecer erro de import ou download, confira a URL em <code>CUSTOM_MODEL_BASE</code> e se os arquivos
-    <code>pt_BR-edresson-low.onnx</code> e <code>.onnx.json</code> estão publicados no seu GitHub Pages.
+    Troque <code>CUSTOM_MODEL_BASE</code> para a URL da sua pasta <code>models/pt_BR/</code> no GitHub Pages e publique.
   </div>
 </div>
 
-<!-- LameJS para MP3 (MIT) -->
+<!-- 1) ONNX Runtime Web (global) + flags para GitHub Pages (sem COOP/COEP) -->
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+<script>
+  if (window.ort && ort.env && ort.env.wasm) {
+    ort.env.wasm.numThreads = 1;   // sem threads
+    ort.env.wasm.simd = false;     // sem SIMD
+    ort.env.wasm.proxy = false;    // evita worker/proxy
+    // ort.env.logLevel = 'verbose'; // (opcional) debug
+  }
+</script>
+
+<!-- 2) LameJS para MP3 (MIT) -->
 <script src="https://cdn.jsdelivr.net/gh/zhuker/lamejs@master/lame.all.js"></script>
 
+<!-- 3) App principal -->
 <script type="module">
-  // 🔧 COLOQUE AQUI a pasta onde você publicou os arquivos do modelo no seu GitHub Pages:
-  // Ex.: 'https://seu-usuario.github.io/seu-repo/models/pt_BR/'
+  // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+  // COLOQUE AQUI a URL ABSOLUTA da pasta onde você publicou os arquivos:
+  //   models/pt_BR/pt_BR-edresson-low.onnx
+  //   models/pt_BR/pt_BR-edresson-low.onnx.json
+  // Ex.: 'https://eudantas2024.github.io/audiotext/models/pt_BR/'
   const CUSTOM_MODEL_BASE = 'https://SEU-USUARIO.github.io/SEU-REPO/models/pt_BR/';
+  // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
   const VOICE_ID = 'pt_BR-edresson-low';
   const logEl = document.getElementById('log');
@@ -93,16 +108,14 @@
   rateInp.addEventListener('input', ()=> rateVal.textContent = rateInp.value);
   volInp.addEventListener('input', ()=> volVal.textContent = volInp.value);
 
-  // ==== Import robusto da lib Piper TTS para Web ====
+  // Import robusto da lib Piper (com fallback)
   let tts;
   try {
-    // 1) esm.sh tende a servir ESM sempre
     tts = await import('https://esm.sh/@mintplex-labs/piper-tts-web@latest');
     ok('Import via esm.sh OK');
   } catch (e1) {
     err('Falhou import via esm.sh: ' + e1.message);
     try {
-      // 2) fallback jsDelivr
       tts = await import('https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@latest/dist/index.min.js');
       ok('Import via jsDelivr OK');
     } catch (e2) {
@@ -110,7 +123,6 @@
     }
   }
 
-  // algumas CDNs exportam em tts.default
   const api = (tts && (tts.default || tts)) || {};
   const fn = (name)=> api[name] || (api.core && api.core[name]);
   const download = fn('download');
@@ -120,24 +132,28 @@
   const flush    = fn('flush');
   const configure= fn('configure');
 
+  if (!download || !predict) {
+    err('A biblioteca Piper não carregou corretamente.');
+  }
+
+  // Configura base personalizada de modelos (se disponível)
   if (configure && CUSTOM_MODEL_BASE) {
     try {
       configure({ modelBaseUrl: CUSTOM_MODEL_BASE });
       ok('Base de modelos configurada: ' + CUSTOM_MODEL_BASE);
     } catch(e){ err('Falha ao configurar base de modelos: ' + e.message); }
   } else if (CUSTOM_MODEL_BASE) {
-    log('ℹ️ Sua versão da lib pode não expor configure(). Mesmo assim, os downloads tentarão usar caminhos padrão. Se falhar, verifique os arquivos.');
+    log('ℹ️ Se a versão da lib não expor configure(), garanta que seus arquivos estão exatamente nesse caminho.');
   }
 
   async function ensureDownloaded(){
-    if (!download) { err('API download() não disponível; a lib não carregou corretamente.'); return; }
+    if (!download) { err('download() indisponível.'); return; }
     log(`Checando modelo "${VOICE_ID}"...`);
     try {
       const keep = (await stored?.()) || [];
       if (keep.includes(VOICE_ID)) { ok('Modelo já existe localmente.'); return; }
     } catch(_) {}
-
-    log('Baixando modelo (pode demorar na 1ª vez)…');
+    log('Baixando modelo (1ª vez pode demorar)…');
     try {
       await download(VOICE_ID, (p)=>{
         if (!p || !p.total) return;
@@ -146,14 +162,14 @@
       });
       ok('Modelo salvo offline.');
     } catch(e) {
-      err('Erro ao baixar modelo. Verifique CUSTOM_MODEL_BASE e os arquivos .onnx/.json. ' + e.message);
+      err('Erro ao baixar modelo. Verifique CUSTOM_MODEL_BASE e os .onnx/.json. ' + e.message);
     }
   }
 
   let lastWavBlob = null;
 
   async function synthesize(){
-    if (!predict) { err('API predict() não disponível; a lib não carregou corretamente.'); return; }
+    if (!predict) { err('predict() indisponível.'); return; }
     const text = textArea.value.trim();
     if (!text) { log('Digite um texto.'); return; }
     await ensureDownloaded();
@@ -167,7 +183,7 @@
       }, (p)=>{ if (p && p.progress) log(`Progresso: ${Math.round(p.progress*100)}%`); });
       lastWavBlob = wavBlob;
       player.src = URL.createObjectURL(wavBlob);
-      player.play().catch(()=>{ /* gesture pode ser necessário */ });
+      player.play().catch(()=>{ /* clique do usuário pode ser exigido */ });
       ok('Áudio pronto.');
     } catch(e) {
       err('Erro na síntese: ' + e.message);
@@ -176,7 +192,7 @@
 
   function parseWavToPCM16(wavBuffer){
     const dv = new DataView(wavBuffer);
-    if (dv.getUint32(0, false) !== 0x52494646) throw new Error('Não é um RIFF WAV');
+    if (dv.getUint32(0, false) !== 0x52494646) throw new Error('Não é RIFF WAV');
     const channels = dv.getUint16(22, true);
     const sampleRate = dv.getUint32(24, true);
     const bitsPerSample = dv.getUint16(34, true);
@@ -251,19 +267,19 @@
     try { ok('WASM: ' + (typeof WebAssembly !== 'undefined')); } catch(_){}
     try { ok('AudioContext: ' + (window.AudioContext ? 'sim' : 'não')); } catch(_){}
     try {
-      const r = await fetch((CUSTOM_MODEL_BASE || '.') + 'pt_BR-edresson-low.onnx', { method:'HEAD', cache:'no-store' });
+      const r = await fetch(CUSTOM_MODEL_BASE + 'pt_BR-edresson-low.onnx', { method:'HEAD', cache:'no-store' });
       log('HEAD .onnx: ' + r.status + ' ' + r.statusText);
     } catch(e){ err('Falha HEAD .onnx: ' + e.message); }
     try {
-      const r = await fetch((CUSTOM_MODEL_BASE || '.') + 'pt_BR-edresson-low.onnx.json', { method:'HEAD', cache:'no-store' });
+      const r = await fetch(CUSTOM_MODEL_BASE + 'pt_BR-edresson-low.onnx.json', { method:'HEAD', cache:'no-store' });
       log('HEAD .json: ' + r.status + ' ' + r.statusText);
     } catch(e){ err('Falha HEAD .json: ' + e.message); }
   });
 
-  // Dica: listar vozes conhecidas pela lib (opcional)
+  // (Opcional) listar vozes conhecidas pela lib
   try {
     const v = await voices?.();
-    if (v?.length) log('Vozes disponíveis na lib: ' + v.slice(0,8).join(', ') + (v.length>8?'…':''));
+    if (v?.length) log('Vozes disponíveis na lib: ' + v.slice(0,8).map(x=> (x.name||x.id||x)).join(', ') + (v.length>8?'…':''));
   } catch(_){}
 </script>
 </html>
