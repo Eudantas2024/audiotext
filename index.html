@@ -5,11 +5,11 @@
 <title>Piper TTS — pt_BR-edresson-low (MP3 offline)</title>
 <style>
   :root{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-  body{margin:0;padding:24px;background:#0b1020;color:#e7ecff}
+  body{margin:0;padding:24px;background:#a53294;color:#e7ecff}
   .card{max-width:880px;margin:0 auto;background:#121936;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
   h1{margin:0 0 12px}
   label{display:block;margin:12px 0 6px;opacity:.9}
-  textarea{width:100%;min-height:140px;border-radius:12px;border:1px solid #329451;background:#0f1630;color:#fff;padding:12px;font-size:16px}
+  textarea{width:100%;min-height:140px;border-radius:12px;border:1px solid #2a335c;background:#0f1630;color:#fff;padding:12px;font-size:16px}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   select,input[type="range"]{width:100%;border-radius:10px;border:1px solid #2a335c;background:#0f1630;color:#fff;padding:10px;font-size:15px}
   .btns{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
@@ -67,21 +67,18 @@
   </div>
 </div>
 
-<!-- ONNX Runtime Web (global) + flags para GitHub Pages (sem COOP/COEP) -->
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
-<script>
-  if (window.ort && ort.env && ort.env.wasm) {
-    ort.env.wasm.numThreads = 1;   // sem threads
-    ort.env.wasm.simd = false;     // sem SIMD
-    ort.env.wasm.proxy = false;    // evita worker/proxy
-    // ort.env.logLevel = 'verbose'; // (opcional) debug
+<!-- Import Map: força o ONNX Runtime "sem SIMD/threads" -->
+<script type="importmap">
+{
+  "imports": {
+    "@onnxruntime/web": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort-wasm.jsep.mjs"
   }
+}
 </script>
 
 <!-- LameJS para MP3 -->
 <script src="https://cdn.jsdelivr.net/gh/zhuker/lamejs@master/lame.all.js"></script>
 
-<!-- App principal -->
 <script type="module">
   // URL da sua pasta de modelos no GitHub Pages
   const CUSTOM_MODEL_BASE = 'https://eudantas2024.github.io/audiotext/models/pt_BR/';
@@ -103,9 +100,10 @@
   rateInp.addEventListener('input', ()=> rateVal.textContent = rateInp.value);
   volInp.addEventListener('input', ()=> volVal.textContent = volInp.value);
 
-  // Import Piper (com fallback)
+  // Import do Piper (com fallback)
   let tts;
   try {
+    // travar versão estável ajuda a evitar mudanças: troque @latest por uma versão se quiser
     tts = await import('https://esm.sh/@mintplex-labs/piper-tts-web@latest');
     ok('Import via esm.sh OK');
   } catch (e1) {
