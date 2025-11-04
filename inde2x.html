@@ -67,7 +67,7 @@
   </div>
 </div>
 
-<!-- (A) Import Map: força o ONNX Runtime "sem SIMD/threads" -->
+<!-- Import Map: força o ONNX Runtime "sem SIMD/threads" -->
 <script type="importmap">
 {
   "imports": {
@@ -76,24 +76,9 @@
 }
 </script>
 
-<!-- (B) Pré-carrega ORT global (fallback) e desliga SIMD/threads -->
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
-<script>
-  if (window.ort && ort.env && ort.env.wasm) {
-    ort.env.wasm.numThreads = 1;   // sem threads
-    ort.env.wasm.simd = false;     // sem SIMD
-    ort.env.wasm.proxy = false;    // sem Worker/proxy
-    // ort.env.logLevel = 'verbose';
-    // Marcar global explicitamente (algumas libs checam isso)
-    self.globalThis = self.globalThis || window;
-    globalThis.ort = ort;
-  }
-</script>
-
-<!-- (C) LameJS para MP3 -->
+<!-- LameJS para MP3 -->
 <script src="https://cdn.jsdelivr.net/gh/zhuker/lamejs@master/lame.all.js"></script>
 
-<!-- (D) App principal -->
 <script type="module">
   // URL da sua pasta de modelos no GitHub Pages
   const CUSTOM_MODEL_BASE = 'https://eudantas2024.github.io/audiotext/models/pt_BR/';
@@ -115,16 +100,17 @@
   rateInp.addEventListener('input', ()=> rateVal.textContent = rateInp.value);
   volInp.addEventListener('input', ()=> volVal.textContent = volInp.value);
 
-  // Import do Piper (fixando versão estável)
+  // Import do Piper (com fallback)
   let tts;
   try {
-    tts = await import('https://esm.sh/@mintplex-labs/piper-tts-web@0.7.2');
-    ok('Import via esm.sh OK (piper-tts-web@0.7.2)');
+    // travar versão estável ajuda a evitar mudanças: troque @latest por uma versão se quiser
+    tts = await import('https://esm.sh/@mintplex-labs/piper-tts-web@latest');
+    ok('Import via esm.sh OK');
   } catch (e1) {
     err('Falhou import via esm.sh: ' + e1.message);
     try {
-      tts = await import('https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@0.7.2/dist/index.min.js');
-      ok('Import via jsDelivr OK (piper-tts-web@0.7.2)');
+      tts = await import('https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@latest/dist/index.min.js');
+      ok('Import via jsDelivr OK');
     } catch (e2) {
       err('Falhou import via jsDelivr: ' + e2.message);
     }
