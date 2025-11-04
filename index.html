@@ -1,1 +1,147 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TTS do dispositivo (Web Speech API)</title>
+<style>
+  :root{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  body{margin:0;padding:24px;background:#0b1020;color:#e7ecff}
+  .card{max-width:800px;margin:0 auto;background:#121936;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  h1{margin:0 0 12px}
+  label{display:block;margin:12px 0 4px;opacity:.9}
+  textarea,select,input[type="range"]{width:100%}
+  textarea{min-height:120px;border-radius:12px;border:1px solid #2a335c;background:#0f1630;color:#fff;padding:12px;font-size:16px}
+  select{border-radius:10px;border:1px solid #2a335c;background:#0f1630;color:#fff;padding:10px;font-size:15px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .btns{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
+  button{border:0;border-radius:12px;padding:12px 16px;font-weight:600;cursor:pointer;background:#4f6bff;color:#fff}
+  button.secondary{background:#28315a}
+  .note{opacity:.8;font-size:13px;margin-top:10px}
+</style>
+<div class="card">
+  <h1>Texto → Voz do dispositivo (Google no Android)</h1>
+
+  <label for="text">Texto</label>
+  <textarea id="text">Olá! Se você estiver no Android com o Speech Services by Google, escolha uma voz “Google … (pt-BR)” e toque em Reproduzir.</textarea>
+
+  <div class="grid">
+    <div>
+      <label for="voice">Voz disponível</label>
+      <select id="voice"></select>
+    </div>
+    <div>
+      <label for="lang">Filtrar por idioma</label>
+      <select id="lang">
+        <option value="">— todos —</option>
+        <option value="pt-BR" selected>pt-BR</option>
+        <option value="en-US">en-US</option>
+        <option value="es-ES">es-ES</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <label>Velocidade: <span id="rateVal">1.0</span></label>
+      <input id="rate" type="range" min="0.5" max="2" step="0.1" value="1">
+    </div>
+    <div>
+      <label>Tom: <span id="pitchVal">1.0</span></label>
+      <input id="pitch" type="range" min="0" max="2" step="0.1" value="1">
+    </div>
+  </div>
+
+  <div class="btns">
+    <button id="speak">▶️ Reproduzir</button>
+    <button id="stop" class="secondary">⏹️ Parar</button>
+  </div>
+
+  <div class="note">
+    Dica: em <em>Configurações do Android → Acessibilidade → Saída de Texto-para-fala</em>, deixe “Speech Services by Google” como mecanismo padrão e baixe o idioma “Português (Brasil)”.
+  </div>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const voiceSel = $("voice");
+  const langSel = $("lang");
+  const rate = $("rate");
+  const pitch = $("pitch");
+  const rateVal = $("rateVal");
+  const pitchVal = $("pitchVal");
+  const textArea = $("text");
+
+  rate.addEventListener("input", ()=> rateVal.textContent = rate.value);
+  pitch.addEventListener("input", ()=> pitchVal.textContent = pitch.value);
+
+  let allVoices = [];
+
+  function populateVoices() {
+    const targetLang = langSel.value;
+    allVoices = speechSynthesis.getVoices();
+
+    // Tenta ordenar trazendo vozes Google pt-BR primeiro
+    const voices = allVoices
+      .filter(v => !targetLang || v.lang === targetLang)
+      .sort((a,b)=>{
+        const ag = /google/i.test(a.name) ? -1 : 0;
+        const bg = /google/i.test(b.name) ? -1 : 0;
+        if (ag !== bg) return ag - bg; // Google primeiro
+        if (a.lang !== b.lang) return a.lang.localeCompare(b.lang);
+        return a.name.localeCompare(b.name);
+      });
+
+    voiceSel.innerHTML = "";
+    for (const v of voices) {
+      const opt = document.createElement("option");
+      opt.value = v.name;
+      opt.textContent = `${v.name} — ${v.lang}${v.default ? " (padrão)" : ""}`;
+      voiceSel.appendChild(opt);
+    }
+
+    if (!voices.length) {
+      const opt = document.createElement("option");
+      opt.textContent = "Nenhuma voz disponível para este idioma";
+      voiceSel.appendChild(opt);
+    }
+  }
+
+  // Alguns navegadores preenchem as vozes de forma assíncrona
+  populateVoices();
+  if (typeof speechSynthesis !== "undefined") {
+    speechSynthesis.onvoiceschanged = populateVoices;
+  }
+
+  langSel.addEventListener("change", populateVoices);
+
+  function speak() {
+    const text = textArea.value.trim();
+    if (!text) return;
+
+    // Cancela qualquer fala em andamento
+    speechSynthesis.cancel();
+
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = parseFloat(rate.value);
+    utter.pitch = parseFloat(pitch.value);
+
+    // Tenta escolher a voz selecionada pelo nome
+    const selectedName = voiceSel.value;
+    const chosen = speechSynthesis.getVoices().find(v => v.name === selectedName);
+    if (chosen) {
+      utter.voice = chosen;
+      utter.lang = chosen.lang;
+    } else {
+      // fallback para filtro de idioma
+      const targetLang = langSel.value || "pt-BR";
+      utter.lang = targetLang;
+    }
+
+    speechSynthesis.speak(utter);
+  }
+
+  $("speak").addEventListener("click", speak);
+  $("stop").addEventListener("click", () => speechSynthesis.cancel());
+</script>
+</html>
 
