@@ -63,11 +63,11 @@
   <div id="log" class="log"></div>
 
   <div class="note">
-    Troque <code>CUSTOM_MODEL_BASE</code> para a URL da sua pasta <code>models/pt_BR/</code> no GitHub Pages e publique.
+    Se mudar a pasta dos modelos, ajuste <code>CUSTOM_MODEL_BASE</code>.
   </div>
 </div>
 
-<!-- 1) ONNX Runtime Web (global) + flags para GitHub Pages (sem COOP/COEP) -->
+<!-- ONNX Runtime Web (global) + flags para GitHub Pages (sem COOP/COEP) -->
 <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
 <script>
   if (window.ort && ort.env && ort.env.wasm) {
@@ -78,20 +78,15 @@
   }
 </script>
 
-<!-- 2) LameJS para MP3 (MIT) -->
+<!-- LameJS para MP3 -->
 <script src="https://cdn.jsdelivr.net/gh/zhuker/lamejs@master/lame.all.js"></script>
 
-<!-- 3) App principal -->
+<!-- App principal -->
 <script type="module">
-  // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-  // COLOQUE AQUI a URL ABSOLUTA da pasta onde você publicou os arquivos:
-  //   models/pt_BR/pt_BR-edresson-low.onnx
-  //   models/pt_BR/pt_BR-edresson-low.onnx.json
-  // Ex.: 'https://eudantas2024.github.io/audiotext/models/pt_BR/'
-  const CUSTOM_MODEL_BASE = 'https://SEU-USUARIO.github.io/SEU-REPO/models/pt_BR/';
-  // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
+  // URL da sua pasta de modelos no GitHub Pages
+  const CUSTOM_MODEL_BASE = 'https://eudantas2024.github.io/audiotext/models/pt_BR/';
   const VOICE_ID = 'pt_BR-edresson-low';
+
   const logEl = document.getElementById('log');
   const player = document.getElementById('player');
   const rateInp = document.getElementById('rate');
@@ -108,7 +103,7 @@
   rateInp.addEventListener('input', ()=> rateVal.textContent = rateInp.value);
   volInp.addEventListener('input', ()=> volVal.textContent = volInp.value);
 
-  // Import robusto da lib Piper (com fallback)
+  // Import Piper (com fallback)
   let tts;
   try {
     tts = await import('https://esm.sh/@mintplex-labs/piper-tts-web@latest');
@@ -136,14 +131,14 @@
     err('A biblioteca Piper não carregou corretamente.');
   }
 
-  // Configura base personalizada de modelos (se disponível)
+  // Configura base personalizada dos modelos
   if (configure && CUSTOM_MODEL_BASE) {
     try {
       configure({ modelBaseUrl: CUSTOM_MODEL_BASE });
       ok('Base de modelos configurada: ' + CUSTOM_MODEL_BASE);
-    } catch(e){ err('Falha ao configurar base de modelos: ' + e.message); }
+    } catch(e){ err('Falha ao configurar base: ' + e.message); }
   } else if (CUSTOM_MODEL_BASE) {
-    log('ℹ️ Se a versão da lib não expor configure(), garanta que seus arquivos estão exatamente nesse caminho.');
+    log('ℹ️ Se a versão da lib não expor configure(), garanta que os arquivos estão nesse caminho.');
   }
 
   async function ensureDownloaded(){
@@ -276,7 +271,6 @@
     } catch(e){ err('Falha HEAD .json: ' + e.message); }
   });
 
-  // (Opcional) listar vozes conhecidas pela lib
   try {
     const v = await voices?.();
     if (v?.length) log('Vozes disponíveis na lib: ' + v.slice(0,8).map(x=> (x.name||x.id||x)).join(', ') + (v.length>8?'…':''));
