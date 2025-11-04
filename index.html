@@ -2,146 +2,263 @@
 <html lang="pt-BR">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TTS do dispositivo (Web Speech API)</title>
+<title>Piper TTS (pt_BR-edresson-low) — Offline no navegador + MP3</title>
 <style>
   :root{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
   body{margin:0;padding:24px;background:#0b1020;color:#e7ecff}
-  .card{max-width:800px;margin:0 auto;background:#121936;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+  .card{max-width:880px;margin:0 auto;background:#121936;border-radius:16px;padding:24px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
   h1{margin:0 0 12px}
-  label{display:block;margin:12px 0 4px;opacity:.9}
-  textarea,select,input[type="range"]{width:100%}
-  textarea{min-height:120px;border-radius:12px;border:1px solid #2a335c;background:#0f1630;color:#fff;padding:12px;font-size:16px}
-  select{border-radius:10px;border:1px solid #2a335c;background:#0f1630;color:#fff;padding:10px;font-size:15px}
+  label{display:block;margin:12px 0 6px;opacity:.9}
+  textarea{width:100%;min-height:140px;border-radius:12px;border:1px solid #2a335c;background:#0f1630;color:#fff;padding:12px;font-size:16px}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  select,input[type="number"],input[type="range"]{width:100%;border-radius:10px;border:1px solid #2a335c;background:#0f1630;color:#fff;padding:10px;font-size:15px}
   .btns{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
   button{border:0;border-radius:12px;padding:12px 16px;font-weight:600;cursor:pointer;background:#4f6bff;color:#fff}
   button.secondary{background:#28315a}
   .note{opacity:.8;font-size:13px;margin-top:10px}
+  .log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;background:#0f1630;border:1px solid #2a335c;border-radius:12px;padding:10px;white-space:pre-wrap;max-height:220px;overflow:auto;margin-top:12px}
+  audio{width:100%;margin-top:12px}
 </style>
+
 <div class="card">
-  <h1>Texto → Voz do dispositivo (Google no Android)</h1>
+  <h1>Piper TTS (pt_BR-edresson-low) — MP3 offline</h1>
 
   <label for="text">Texto</label>
-  <textarea id="text">Olá! Se você estiver no Android com o Speech Services by Google, escolha uma voz “Google … (pt-BR)” e toque em Reproduzir.</textarea>
+  <textarea id="text">Olá! Este áudio foi gerado 100% no navegador usando Piper TTS e convertido para MP3 no próprio aparelho.</textarea>
 
   <div class="grid">
     <div>
-      <label for="voice">Voz disponível</label>
-      <select id="voice"></select>
+      <label for="voice">Voz</label>
+      <select id="voice">
+        <option value="pt_BR-edresson-low" selected>pt_BR-edresson-low</option>
+      </select>
     </div>
     <div>
-      <label for="lang">Filtrar por idioma</label>
-      <select id="lang">
-        <option value="">— todos —</option>
-        <option value="pt-BR" selected>pt-BR</option>
-        <option value="en-US">en-US</option>
-        <option value="es-ES">es-ES</option>
+      <label for="rate">Velocidade (0.5–2.0): <span id="rateVal">1.0</span></label>
+      <input id="rate" type="range" min="0.5" max="2" step="0.05" value="1">
+    </div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <label for="volume">Volume (0–1): <span id="volVal">1.0</span></label>
+      <input id="volume" type="range" min="0" max="1" step="0.05" value="1">
+    </div>
+    <div>
+      <label for="format">Formato para baixar</label>
+      <select id="format">
+        <option value="mp3" selected>MP3 (compacto)</option>
+        <option value="wav">WAV (sem perda, maior)</option>
       </select>
     </div>
   </div>
 
-  <div class="grid">
-    <div>
-      <label>Velocidade: <span id="rateVal">1.0</span></label>
-      <input id="rate" type="range" min="0.5" max="2" step="0.1" value="1">
-    </div>
-    <div>
-      <label>Tom: <span id="pitchVal">1.0</span></label>
-      <input id="pitch" type="range" min="0" max="2" step="0.1" value="1">
-    </div>
+  <div class="btns">
+    <button id="btnSpeak">▶️ Reproduzir</button>
+    <button id="btnStop" class="secondary">⏹️ Parar</button>
+    <button id="btnDownload" class="secondary">⬇️ Baixar</button>
+    <button id="btnPreload" class="secondary">⬇️ Pré-carregar modelo</button>
+    <button id="btnClear" class="secondary">🧹 Limpar modelos salvos</button>
   </div>
 
-  <div class="btns">
-    <button id="speak">▶️ Reproduzir</button>
-    <button id="stop" class="secondary">⏹️ Parar</button>
-  </div>
+  <audio id="player" controls></audio>
 
   <div class="note">
-    Dica: em <em>Configurações do Android → Acessibilidade → Saída de Texto-para-fala</em>, deixe “Speech Services by Google” como mecanismo padrão e baixe o idioma “Português (Brasil)”.
+    Primeira execução baixa o modelo (pode demorar um pouco). Depois fica salvo localmente.
+    Se sua rede bloquear, hospede os arquivos do modelo no seu próprio repositório e troque a base de download no código (procure por <code>CUSTOM_MODEL_BASE</code>).
   </div>
+
+  <div id="log" class="log"></div>
 </div>
 
-<script>
-  const $ = id => document.getElementById(id);
-  const voiceSel = $("voice");
-  const langSel = $("lang");
-  const rate = $("rate");
-  const pitch = $("pitch");
-  const rateVal = $("rateVal");
-  const pitchVal = $("pitchVal");
-  const textArea = $("text");
+<!-- LameJS para MP3 (MIT) -->
+<script src="https://cdn.jsdelivr.net/gh/zhuker/lamejs@master/lame.all.js"></script>
 
-  rate.addEventListener("input", ()=> rateVal.textContent = rate.value);
-  pitch.addEventListener("input", ()=> pitchVal.textContent = pitch.value);
+<!-- Import ESM da lib de Piper para Web; usa ONNX Runtime Web por baixo -->
+<script type="module">
+  // Dantas: se quiser forçar baixar os arquivos do modelo do seu próprio GitHub Pages,
+  // defina CUSTOM_MODEL_BASE para o caminho onde você colocou:
+  //   pt_BR/pt_BR-edresson-low.onnx
+  //   pt_BR/pt_BR-edresson-low.onnx.json
+  // Ex.: 'https://seu-usuario.github.io/seu-repo/models/'
+  const CUSTOM_MODEL_BASE = ""; // deixe vazio para usar a CDN padrão da lib
 
-  let allVoices = [];
+  const logEl = document.getElementById('log');
+  const player = document.getElementById('player');
+  const rateInp = document.getElementById('rate');
+  const volInp = document.getElementById('volume');
+  const rateVal = document.getElementById('rateVal');
+  const volVal = document.getElementById('volVal');
+  const voiceSel = document.getElementById('voice');
+  const formatSel = document.getElementById('format');
+  const textArea = document.getElementById('text');
 
-  function populateVoices() {
-    const targetLang = langSel.value;
-    allVoices = speechSynthesis.getVoices();
+  const log = (m) => { logEl.textContent += m + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+  rateInp.addEventListener('input', ()=> rateVal.textContent = rateInp.value);
+  volInp.addEventListener('input', ()=> volVal.textContent = volInp.value);
 
-    // Tenta ordenar trazendo vozes Google pt-BR primeiro
-    const voices = allVoices
-      .filter(v => !targetLang || v.lang === targetLang)
-      .sort((a,b)=>{
-        const ag = /google/i.test(a.name) ? -1 : 0;
-        const bg = /google/i.test(b.name) ? -1 : 0;
-        if (ag !== bg) return ag - bg; // Google primeiro
-        if (a.lang !== b.lang) return a.lang.localeCompare(b.lang);
-        return a.name.localeCompare(b.name);
+  // Import da lib Piper TTS para browser (Mintplex Labs)
+  // Dica: se der CORS/ESM, troque para esm.sh abaixo
+  let tts;
+  try {
+    tts = await import('https://cdn.jsdelivr.net/npm/@mintplex-labs/piper-tts-web@latest/dist/index.min.js');
+  } catch (e) {
+    // fallback via esm.sh
+    tts = await import('https://esm.sh/@mintplex-labs/piper-tts-web@latest');
+  }
+
+  // Config opcional: base personalizada para modelos/wasm
+  if (CUSTOM_MODEL_BASE) {
+    // Algumas versões da lib expõem configure(); mantemos cheque defensivo
+    if (tts.configure) {
+      tts.configure({
+        // Base onde ficarão os .onnx e .onnx.json (ex.: seu GH Pages)
+        modelBaseUrl: CUSTOM_MODEL_BASE
       });
-
-    voiceSel.innerHTML = "";
-    for (const v of voices) {
-      const opt = document.createElement("option");
-      opt.value = v.name;
-      opt.textContent = `${v.name} — ${v.lang}${v.default ? " (padrão)" : ""}`;
-      voiceSel.appendChild(opt);
-    }
-
-    if (!voices.length) {
-      const opt = document.createElement("option");
-      opt.textContent = "Nenhuma voz disponível para este idioma";
-      voiceSel.appendChild(opt);
     }
   }
 
-  // Alguns navegadores preenchem as vozes de forma assíncrona
-  populateVoices();
-  if (typeof speechSynthesis !== "undefined") {
-    speechSynthesis.onvoiceschanged = populateVoices;
-  }
+  // Estado
+  let lastWavBlob = null;
+  let currentAudio = null;
 
-  langSel.addEventListener("change", populateVoices);
-
-  function speak() {
-    const text = textArea.value.trim();
-    if (!text) return;
-
-    // Cancela qualquer fala em andamento
-    speechSynthesis.cancel();
-
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = parseFloat(rate.value);
-    utter.pitch = parseFloat(pitch.value);
-
-    // Tenta escolher a voz selecionada pelo nome
-    const selectedName = voiceSel.value;
-    const chosen = speechSynthesis.getVoices().find(v => v.name === selectedName);
-    if (chosen) {
-      utter.voice = chosen;
-      utter.lang = chosen.lang;
+  async function ensureDownloaded(voiceId){
+    log(`Checando modelo "${voiceId}"...`);
+    const stored = (await tts.stored?.()) || [];
+    if (!stored.includes(voiceId)) {
+      log(`Baixando modelo "${voiceId}" (primeira vez pode demorar)...`);
+      await tts.download(voiceId, (p) => {
+        if (!p || !p.total) return;
+        const pct = Math.round((p.loaded*100)/p.total);
+        log(`→ ${p.url ?? 'arquivo'}: ${pct}%`);
+      });
+      log(`Modelo "${voiceId}" salvo offline.`);
     } else {
-      // fallback para filtro de idioma
-      const targetLang = langSel.value || "pt-BR";
-      utter.lang = targetLang;
+      log(`Modelo já está salvo localmente.`);
     }
-
-    speechSynthesis.speak(utter);
   }
 
-  $("speak").addEventListener("click", speak);
-  $("stop").addEventListener("click", () => speechSynthesis.cancel());
+  function blobToArrayBuffer(blob){ return blob.arrayBuffer(); }
+
+  function parseWavToPCM16(wavBuffer){
+    // Leitor simples do cabeçalho WAV PCM 16-bit mono/stereo
+    const dv = new DataView(wavBuffer);
+    const channels = dv.getUint16(22, true);
+    const sampleRate = dv.getUint32(24, true);
+    const bitsPerSample = dv.getUint16(34, true);
+    // Localiza "data"
+    let pos = 12;
+    while (pos < dv.byteLength){
+      const id = dv.getUint32(pos, false); // big endian 'data'
+      const size = dv.getUint32(pos+4, true);
+      if (id === 0x64617461) { // "data"
+        const pcm = new Int16Array(wavBuffer, pos+8, size/2);
+        return { pcm, sampleRate, channels, bitsPerSample };
+      }
+      pos += 8 + size;
+    }
+    throw new Error("Chunk 'data' não encontrado no WAV.");
+  }
+
+  function encodeMp3FromPCM({ pcm, sampleRate, channels }){
+    // Se vier stereo, interleavado; lamejs espera por canal
+    // Simplificação: se stereo, converte para mono fazendo média
+    let mono = pcm;
+    if (channels === 2){
+      const leftRight = new Int16Array(pcm.length/2);
+      for (let i=0, j=0; i<pcm.length; i+=2, j++){
+        leftRight[j] = (pcm[i] + pcm[i+1]) >> 1;
+      }
+      mono = leftRight;
+    }
+    const kbps = 128; // taxa padrão
+    const mp3enc = new lamejs.Mp3Encoder(1, sampleRate, kbps);
+    const samplesPerFrame = 1152;
+    let mp3Data = [];
+    for (let i=0; i<mono.length; i += samplesPerFrame){
+      const chunk = mono.subarray(i, i+samplesPerFrame);
+      const mp3buf = mp3enc.encodeBuffer(chunk);
+      if (mp3buf.length) mp3Data.push(new Int8Array(mp3buf));
+    }
+    const end = mp3enc.flush();
+    if (end.length) mp3Data.push(new Int8Array(end));
+    // Concatena
+    let size = 0; mp3Data.forEach(b => size += b.length);
+    const out = new Uint8Array(size);
+    let offset = 0; mp3Data.forEach(b => { out.set(b, offset); offset += b.length; });
+    return new Blob([out], { type: 'audio/mpeg' });
+  }
+
+  function downloadBlob(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    URL.revokeObjectURL(url); a.remove();
+  }
+
+  async function synthesize(){
+    const text = textArea.value.trim();
+    if (!text) { log("Digite um texto."); return; }
+    const voiceId = voiceSel.value;
+    await ensureDownloaded(voiceId);
+
+    log("Sintetizando com Piper...");
+    const wavBlob = await tts.predict({
+      text,
+      voiceId,
+      // Parâmetros expostos pela lib: rate (speed) e volume
+      // Alguns modelos ignoram parte destes params
+      rate: parseFloat(rateInp.value),    // 1 = normal
+      volume: parseFloat(volInp.value)    // 1 = 100%
+    }, (p)=>{ if (p && p.progress) log(`Progresso: ${Math.round(p.progress*100)}%`); });
+
+    lastWavBlob = wavBlob;
+    player.src = URL.createObjectURL(wavBlob);
+    player.play().catch(()=>{ /* usuário precisa clicar */ });
+    log("Pronto! Áudio gerado.");
+  }
+
+  document.getElementById('btnSpeak').addEventListener('click', synthesize);
+
+  document.getElementById('btnStop').addEventListener('click', ()=>{
+    try { player.pause(); player.currentTime = 0; } catch(e){}
+  });
+
+  document.getElementById('btnPreload').addEventListener('click', async ()=>{
+    await ensureDownloaded(voiceSel.value);
+  });
+
+  document.getElementById('btnClear').addEventListener('click', async ()=>{
+    if (confirm("Apagar modelos salvos localmente?")) {
+      await tts.flush?.();
+      log("Modelos removidos do armazenamento local.");
+    }
+  });
+
+  document.getElementById('btnDownload').addEventListener('click', async ()=>{
+    if (!lastWavBlob){
+      log("Gere um áudio primeiro.");
+      return;
+    }
+    const fmt = formatSel.value;
+    if (fmt === 'wav'){
+      downloadBlob(lastWavBlob, 'piper.wav');
+      return;
+    }
+    // WAV -> MP3 (cliente)
+    log("Convertendo WAV → MP3...");
+    const wavAb = await blobToArrayBuffer(lastWavBlob);
+    const { pcm, sampleRate, channels } = parseWavToPCM16(wavAb);
+    const mp3Blob = encodeMp3FromPCM({ pcm, sampleRate, channels });
+    downloadBlob(mp3Blob, 'piper.mp3');
+    log("MP3 baixado.");
+  });
+
+  // Dica: liste vozes disponíveis (útil para trocar voz futuramente)
+  try {
+    const voices = await (tts.voices?.() || []);
+    if (voices.length) log(`Vozes disponíveis pela lib: ${voices.slice(0,8).join(', ')}${voices.length>8?'…':''}`);
+  } catch(_) {}
 </script>
 </html>
-
